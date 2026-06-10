@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 const BREATH_PHASES = [
-  { label: "숨을 들이쉬세요", duration: 4000, scale: 1.4 },
+  { label: "숨을 들이 쉬세요", duration: 4000, scale: 1.4 },
   { label: "잠깐 멈추세요", duration: 2000, scale: 1.4 },
   { label: "천천히 내쉬세요", duration: 4000, scale: 1 },
   { label: "편안하게", duration: 2000, scale: 1 },
