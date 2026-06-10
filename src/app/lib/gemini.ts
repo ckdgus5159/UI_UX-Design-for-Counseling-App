@@ -15,7 +15,7 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
   }
 
   // 기본 모델 명칭 설정
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
   
   // Base64 이미지 포맷 정제
   const base64Data = imageBase64.split(",")[1];
