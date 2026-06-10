@@ -14,7 +14,7 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
   }
 
   // 🌟 가장 안정적으로 작동했던 Pro 모델 유지
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
   
   const base64Data = imageBase64.split(",")[1];
   if (!base64Data) {
