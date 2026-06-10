@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { Pen, Eraser, RotateCcw, Check, Minus, Plus } from "lucide-react";
+import { Pen, Eraser, RotateCcw, Check, Minus, Plus, Undo } from "lucide-react";
 import type { TestType } from "./TestSelection";
 
 const TEST_INSTRUCTIONS: Record<TestType, { title: string; guide: string }> = {
@@ -36,7 +36,10 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [color, setColor] = useState("#2C2825");
   const [size, setSize] = useState(3);
+  
   const lastPos = useRef<{ x: number; y: number } | null>(null);
+  // 🌟 추가됨: 캔버스 상태(이미지 데이터)를 저장하여 되돌리기를 구현하는 Ref 배열
+  const historyRef = useRef<ImageData[]>([]);
 
   const instruction = TEST_INSTRUCTIONS[testType];
 
@@ -50,6 +53,9 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     if (testType === "hexagon") {
       drawHexagonGuide(ctx, canvas.width, canvas.height);
     }
+
+    // 🌟 추가됨: 초기 빈 캔버스 상태를 히스토리에 저장
+    historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
   }, [testType]);
 
   const drawHexagonGuide = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
@@ -126,8 +132,37 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
 
   const stopDraw = useCallback(() => {
     setIsDrawing(false);
+    
+    // 🌟 추가됨: 한 획 그리기가 끝날 때마다 캔버스 상태를 캡처하여 저장
+    if (lastPos.current) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d")!;
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        historyRef.current.push(imageData);
+        
+        // 너무 많은 상태 저장으로 인한 메모리 누수 방지 (최대 30개)
+        if (historyRef.current.length > 30) {
+          historyRef.current.shift();
+        }
+      }
+    }
     lastPos.current = null;
   }, []);
+
+  // 🌟 추가됨: 뒤로가기(Undo) 기능 구현
+  const handleUndo = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    
+    // 저장된 상태가 2개 이상일 때만 (초기 상태 + 최소 1획) 되돌리기 가능
+    if (historyRef.current.length > 1) {
+      historyRef.current.pop(); // 방금 그린 획(현재 상태) 제거
+      const previousState = historyRef.current[historyRef.current.length - 1]; // 이전 상태 가져오기
+      ctx.putImageData(previousState, 0, 0); // 캔버스에 덮어쓰기
+    }
+  };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -136,6 +171,9 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (testType === "hexagon") drawHexagonGuide(ctx, canvas.width, canvas.height);
+
+    // 🌟 추가됨: 초기화 후 히스토리도 초기화
+    historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
   };
 
   const handleSubmit = () => {
@@ -216,6 +254,12 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
         </div>
 
         <div className="w-px h-5 bg-border" />
+        
+        {/* 🌟 추가됨: 한 획 되돌리기 버튼 */}
+        <button onClick={handleUndo} className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <Undo size={14} />
+          되돌리기
+        </button>
 
         <button onClick={clearCanvas} className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-sm">
           <RotateCcw size={14} />

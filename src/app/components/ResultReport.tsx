@@ -58,6 +58,7 @@ interface Props {
   userInfo: UserInfo;
   drawingDataUrl: string;
   onRestart: () => void;
+  analysisResult: string;
 }
 
 export function ResultReport({ testType, userInfo, drawingDataUrl, onRestart }: Props) {

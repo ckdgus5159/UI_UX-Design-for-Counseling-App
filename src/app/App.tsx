@@ -10,6 +10,10 @@ import { LoadingBreath } from "./components/LoadingBreath";
 import { ResultReport } from "./components/ResultReport";
 import { AdminDashboard } from "./components/AdminDashboard";
 
+// 🌟 추가됨: API 연동 파일 임포트
+import { analyzeDrawing } from "./lib/gemini";
+import { supabase } from "./lib/supabase";
+
 type View = "home" | "select" | "prequestions" | "drawing" | "loading" | "result" | "admin";
 
 const pageVariants = {
@@ -23,6 +27,9 @@ export default function App() {
   const [selectedTest, setSelectedTest] = useState<TestType | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [drawingDataUrl, setDrawingDataUrl] = useState<string>("");
+  
+  // 🌟 추가됨: AI 분석 결과를 담을 상태
+  const [analysisResult, setAnalysisResult] = useState<string>("");
 
   const handleSelectTest = (t: TestType) => {
     setSelectedTest(t);
@@ -34,19 +41,48 @@ export default function App() {
     setView("drawing");
   };
 
-  const handleDrawingSubmit = (dataUrl: string) => {
+  // 🌟 변경됨: 그림 제출 시 로딩창을 띄우고 동시에 API 호출 및 DB 저장 수행
+  const handleDrawingSubmit = async (dataUrl: string) => {
     setDrawingDataUrl(dataUrl);
-    setView("loading");
+    setView("loading"); // 로딩 애니메이션 뷰로 전환
+
+    try {
+      // 1. Gemini AI 분석 요청
+      const resultText = await analyzeDrawing(userInfo, dataUrl);
+      setAnalysisResult(resultText);
+
+      // 2. Supabase DB에 기록 저장
+      const { error } = await supabase.from('drawing_tests').insert([{
+        age: userInfo?.age,
+        gender: userInfo?.gender,
+        job: userInfo?.job,
+        concern: userInfo?.concern,
+        test_type: selectedTest,
+        image_base64: dataUrl,
+        analysis_result: resultText
+      }]);
+      
+      if (error) console.error("DB 저장 에러:", error);
+
+      // 3. 모든 작업이 완료되면 결과창으로 전환
+      setView("result");
+    } catch (error) {
+      console.error(error);
+      alert("AI 분석 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      setView("drawing");
+    }
   };
 
+  // LoadingBreath 내부에 있는 onDone은 API가 끝날 때 뷰를 전환하므로 빈 함수로 무시합니다.
   const handleLoadingDone = useCallback(() => {
-    setView("result");
+    // 의도적으로 비워둠 (handleDrawingSubmit에서 전환을 제어함)
   }, []);
 
   const handleRestart = () => {
     setSelectedTest(null);
     setUserInfo(null);
     setDrawingDataUrl("");
+    setAnalysisResult("");
     setView("home");
   };
 
@@ -98,6 +134,8 @@ export default function App() {
               userInfo={userInfo}
               drawingDataUrl={drawingDataUrl}
               onRestart={handleRestart}
+              // 🌟 추가됨: ResultReport 컴포넌트가 이 Props를 받아서 보여주도록 나중에 수정해야 합니다.
+              analysisResult={analysisResult} 
             />
           </motion.div>
         )}
