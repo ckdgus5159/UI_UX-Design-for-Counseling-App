@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { Pen, Eraser, RotateCcw, Check, Minus, Plus, Undo } from "lucide-react";
 import type { TestType } from "./TestSelection";
 
-// 🌟 추가됨: src/assets 폴더에 저장한 배경 이미지를 불러옵니다.
+// src/assets 폴더에 저장한 배경 이미지를 불러옵니다.
 import hexagonBg from "../../assets/hexagon-bg.png";
 
 const TEST_INSTRUCTIONS: Record<TestType, { title: string; guide: string }> = {
@@ -21,7 +21,7 @@ const TEST_INSTRUCTIONS: Record<TestType, { title: string; guide: string }> = {
   },
   htp: {
     title: "집·나무·사람을 그려주세요",
-    guide: "한 장면 안에 집, 나무, 사람을 모두 그려보세요. 배치와 크기는 당신의 선택입니다.",
+    guide: "안내된 세 칸에 각각 집, 나무, 사람을 그려보세요. 배치와 크기는 당신의 선택입니다.",
   },
 };
 
@@ -41,10 +41,39 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
   const [size, setSize] = useState(3);
   
   const lastPos = useRef<{ x: number; y: number } | null>(null);
-  // 캔버스 상태(이미지 데이터)를 저장하여 되돌리기를 구현하는 Ref 배열
   const historyRef = useRef<ImageData[]>([]);
 
   const instruction = TEST_INSTRUCTIONS[testType];
+
+  // 🌟 추가됨: HTP 검사용 3분할 가이드라인을 그리는 함수
+  const drawHtpGuide = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.save();
+    
+    // 1. 세로 3분할 점선 그리기
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+
+    ctx.beginPath();
+    ctx.moveTo(w / 3, 0);
+    ctx.lineTo(w / 3, h);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo((w / 3) * 2, 0);
+    ctx.lineTo((w / 3) * 2, h);
+    ctx.stroke();
+
+    // 2. 각 영역 상단에 옅은 안내 텍스트 추가
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    ctx.font = "14px 'Noto Sans KR'";
+    ctx.textAlign = "center";
+    ctx.fillText("집 (House)", w / 6, 30);
+    ctx.fillText("나무 (Tree)", w / 2, 30);
+    ctx.fillText("사람 (Person)", (w / 6) * 5, 30);
+
+    ctx.restore();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -53,17 +82,18 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 🌟 추가됨: 육도형일 경우 실제 이미지 파일을 캔버스에 그립니다.
     if (testType === "hexagon") {
       const img = new Image();
       img.src = hexagonBg;
       img.onload = () => {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // 이미지가 로드된 후의 상태를 히스토리에 저장해야 되돌리기가 꼬이지 않습니다.
         historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
       };
+    } else if (testType === "htp") {
+      // 🌟 HTP 검사일 경우 3분할 선을 그립니다.
+      drawHtpGuide(ctx, canvas.width, canvas.height);
+      historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
     } else {
-      // 다른 검사는 빈 하얀 캔버스를 히스토리에 저장
       historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
     }
   }, [testType]);
@@ -116,7 +146,6 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
   const stopDraw = useCallback(() => {
     setIsDrawing(false);
     
-    // 한 획 그리기가 끝날 때마다 캔버스 상태를 캡처하여 저장
     if (lastPos.current) {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -124,7 +153,6 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         historyRef.current.push(imageData);
         
-        // 너무 많은 상태 저장으로 인한 메모리 누수 방지 (최대 30개)
         if (historyRef.current.length > 30) {
           historyRef.current.shift();
         }
@@ -138,11 +166,10 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     
-    // 저장된 상태가 2개 이상일 때만 (초기 상태 + 최소 1획) 되돌리기 가능
     if (historyRef.current.length > 1) {
-      historyRef.current.pop(); // 방금 그린 획(현재 상태) 제거
-      const previousState = historyRef.current[historyRef.current.length - 1]; // 이전 상태 가져오기
-      ctx.putImageData(previousState, 0, 0); // 캔버스에 덮어쓰기
+      historyRef.current.pop();
+      const previousState = historyRef.current[historyRef.current.length - 1];
+      ctx.putImageData(previousState, 0, 0);
     }
   };
 
@@ -153,7 +180,6 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // 🌟 추가됨: 초기화할 때도 배경 이미지를 다시 그려줍니다.
     if (testType === "hexagon") {
       const img = new Image();
       img.src = hexagonBg;
@@ -161,6 +187,10 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
       };
+    } else if (testType === "htp") {
+      // 🌟 초기화 시에도 HTP 선을 다시 그립니다.
+      drawHtpGuide(ctx, canvas.width, canvas.height);
+      historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
     } else {
       historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
     }
