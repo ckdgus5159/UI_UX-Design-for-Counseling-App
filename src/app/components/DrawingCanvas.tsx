@@ -3,6 +3,9 @@ import { motion } from "motion/react";
 import { Pen, Eraser, RotateCcw, Check, Minus, Plus, Undo } from "lucide-react";
 import type { TestType } from "./TestSelection";
 
+// 🌟 추가됨: src/assets 폴더에 저장한 배경 이미지를 불러옵니다.
+import hexagonBg from "../../assets/hexagon-bg.png";
+
 const TEST_INSTRUCTIONS: Record<TestType, { title: string; guide: string }> = {
   rain: {
     title: "빗속의 사람을 그려주세요",
@@ -38,7 +41,7 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
   const [size, setSize] = useState(3);
   
   const lastPos = useRef<{ x: number; y: number } | null>(null);
-  // 🌟 추가됨: 캔버스 상태(이미지 데이터)를 저장하여 되돌리기를 구현하는 Ref 배열
+  // 캔버스 상태(이미지 데이터)를 저장하여 되돌리기를 구현하는 Ref 배열
   const historyRef = useRef<ImageData[]>([]);
 
   const instruction = TEST_INSTRUCTIONS[testType];
@@ -50,40 +53,20 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // 🌟 추가됨: 육도형일 경우 실제 이미지 파일을 캔버스에 그립니다.
     if (testType === "hexagon") {
-      drawHexagonGuide(ctx, canvas.width, canvas.height);
+      const img = new Image();
+      img.src = hexagonBg;
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // 이미지가 로드된 후의 상태를 히스토리에 저장해야 되돌리기가 꼬이지 않습니다.
+        historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+      };
+    } else {
+      // 다른 검사는 빈 하얀 캔버스를 히스토리에 저장
+      historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
     }
-
-    // 🌟 추가됨: 초기 빈 캔버스 상태를 히스토리에 저장
-    historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
   }, [testType]);
-
-  const drawHexagonGuide = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    ctx.save();
-    ctx.strokeStyle = "rgba(15, 118, 110, 0.18)";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
-
-    const hexRadius = Math.min(w, h) * 0.13;
-    const positions = [
-      [w * 0.25, h * 0.28], [w * 0.5, h * 0.2], [w * 0.75, h * 0.28],
-      [w * 0.25, h * 0.72], [w * 0.5, h * 0.8], [w * 0.75, h * 0.72],
-    ];
-
-    positions.forEach(([cx, cy]) => {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        const x = cx + hexRadius * Math.cos(angle);
-        const y = cy + hexRadius * Math.sin(angle);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-      ctx.stroke();
-    });
-    ctx.restore();
-  };
 
   const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
@@ -133,7 +116,7 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
   const stopDraw = useCallback(() => {
     setIsDrawing(false);
     
-    // 🌟 추가됨: 한 획 그리기가 끝날 때마다 캔버스 상태를 캡처하여 저장
+    // 한 획 그리기가 끝날 때마다 캔버스 상태를 캡처하여 저장
     if (lastPos.current) {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -150,7 +133,6 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     lastPos.current = null;
   }, []);
 
-  // 🌟 추가됨: 뒤로가기(Undo) 기능 구현
   const handleUndo = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -170,10 +152,18 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (testType === "hexagon") drawHexagonGuide(ctx, canvas.width, canvas.height);
-
-    // 🌟 추가됨: 초기화 후 히스토리도 초기화
-    historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+    
+    // 🌟 추가됨: 초기화할 때도 배경 이미지를 다시 그려줍니다.
+    if (testType === "hexagon") {
+      const img = new Image();
+      img.src = hexagonBg;
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+      };
+    } else {
+      historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+    }
   };
 
   const handleSubmit = () => {
@@ -255,7 +245,6 @@ export function DrawingCanvas({ testType, onSubmit, onBack }: Props) {
 
         <div className="w-px h-5 bg-border" />
         
-        {/* 🌟 추가됨: 한 획 되돌리기 버튼 */}
         <button onClick={handleUndo} className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-sm">
           <Undo size={14} />
           되돌리기
