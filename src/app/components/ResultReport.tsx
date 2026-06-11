@@ -10,7 +10,7 @@ const TEST_NAMES: Record<TestType, string> = {
   htp: "집·나무·사람",
 };
 
-// UI 구조(키워드 뱃지)를 유지하기 위한 검사별 기본 키워드
+// UI 구조 유지를 위한 기본(Fallback) 키워드
 const TEST_KEYWORDS: Record<TestType, string[]> = {
   rain: ["회복탄력성", "내적 강인함", "스트레스 대처", "자기보호"],
   starwave: ["감수성", "관계 지향", "감정적 역동성", "이상주의"],
@@ -23,16 +23,34 @@ interface Props {
   userInfo: UserInfo;
   drawingDataUrl: string;
   onRestart: () => void;
-  analysisResult: string; // AI가 분석한 실제 데이터
+  analysisResult: string; 
 }
 
 export function ResultReport({ testType, userInfo, drawingDataUrl, onRestart, analysisResult }: Props) {
-  const keywords = TEST_KEYWORDS[testType];
+  let contentText = "분석 결과를 불러오지 못했습니다. 다시 시도해 주세요.";
+  let dynamicKeywords = TEST_KEYWORDS[testType];
 
-  // AI 분석 결과를 줄바꿈 기준으로 나누고, 마크다운 기호(**, #)를 제거하여 애니메이션 문단용 배열로 변환합니다.
-  const displayParagraphs = analysisResult
-    ? analysisResult.replace(/[*#]/g, "").split('\n').filter(para => para.trim() !== '')
-    : ["분석 결과를 불러오지 못했습니다. 다시 시도해 주세요."];
+  // 🌟 AI가 JSON 형태로 준 데이터를 해석(Parse)합니다.
+  if (analysisResult) {
+    try {
+      const parsedData = JSON.parse(analysisResult);
+      contentText = parsedData.content || analysisResult;
+      
+      // 추출된 키워드가 정상 배열이라면 교체합니다.
+      if (parsedData.keywords && Array.isArray(parsedData.keywords)) {
+        dynamicKeywords = parsedData.keywords;
+      }
+    } catch (error) {
+      // JSON 파싱 실패 시 (과거 텍스트 데이터 등) 기존 텍스트를 그대로 사용합니다.
+      contentText = analysisResult;
+    }
+  }
+
+  // 본문의 마크다운 기호를 제거하고 문단별로 나눕니다.
+  const displayParagraphs = contentText
+    .replace(/[*#]/g, "")
+    .split('\n')
+    .filter(para => para.trim() !== '');
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,8 +107,9 @@ export function ResultReport({ testType, userInfo, drawingDataUrl, onRestart, an
                 <p className="text-sm text-muted-foreground">주요 심리 키워드</p>
               </div>
               <div className="flex flex-wrap gap-2 mb-6">
-                {keywords.map((kw) => (
-                  <span key={kw} className="bg-accent text-primary rounded-full px-3 py-1 text-sm">
+                {/* 🌟 AI가 분석한 맞춤형 동적 키워드 렌더링 */}
+                {dynamicKeywords.map((kw, index) => (
+                  <span key={index} className="bg-accent text-primary rounded-full px-3 py-1 text-sm font-medium">
                     {kw}
                   </span>
                 ))}
@@ -123,7 +142,6 @@ export function ResultReport({ testType, userInfo, drawingDataUrl, onRestart, an
             <p className="text-sm text-muted-foreground">마음 서재의 편지</p>
           </div>
           <div className="space-y-5">
-            {/* 기존 애니메이션 구조를 유지하며 AI 텍스트 문단 출력 */}
             {displayParagraphs.map((para, i) => (
               <motion.p
                 key={i}

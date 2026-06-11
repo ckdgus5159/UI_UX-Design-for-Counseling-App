@@ -13,7 +13,7 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
     throw new Error("Gemini API Key가 누락되었습니다. Vercel 환경 변수 설정을 확인해주세요.");
   }
 
-  // 🌟 가장 안정적으로 작동했던 Pro 모델 유지
+  // 🌟 기존에 설정하신 모델 유지
   const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
   
   const base64Data = imageBase64.split(",")[1];
@@ -24,7 +24,7 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
   let specificGuide = "";
   const testType = userInfo.testType || "";
 
-  // 🌟 각 검사별로 AI가 '무엇을' 찾아내야 하는지 명확한 돋보기를 쥐어줍니다.
+  // 각 검사별 가이드라인 유지
   switch (testType) {
     case "rain":
       specificGuide = `
@@ -66,7 +66,7 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
       specificGuide = "그림에서 관찰되는 선의 형태, 크기, 배치를 객관적 시각적 근거로 삼아 분석해줘.";
   }
 
-  // 🌟 AI에게 역할과 출력 형식을 아주 엄격하게 지시합니다.
+  // 🌟 AI에게 JSON 형식으로 응답하도록 엄격하게 지시합니다.
   const prompt = `
   너는 미술 치료 경력 15년 차의 임상 심리 전문가이자 따뜻한 공감을 전하는 상담가야.
   제공된 이미지를 전문가의 눈으로 정밀하게 스캔한 뒤 심리 분석 리포트를 작성해줘.
@@ -81,13 +81,19 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
   ${specificGuide}
   
   [★ 필수 답변 작성 규칙 - 신뢰성과 근거 강화]
-  1. **절대 추측으로만 쓰지 마:** 심리 상태를 설명할 때는 반드시 "그림에서 우산이 얼굴을 푹 덮을 만큼 크게 그려진 것을 보아", "파도의 선이 둥글고 부드럽게 표현된 점으로 미루어 볼 때"와 같이 **그림 속 시각적 단서를 명확한 근거로 먼저 제시**해줘. 시각적 단서 없이 심리상태만 둥구름 잡듯 나열하면 안 돼.
-  2. **말투와 톤앤매너:** 15년 차 전문가답게 논리적이면서도, 내담자의 고민을 부드럽게 감싸안아 주는 다정하고 따뜻한 위로의 말투(해요체)를 유지해줘. 차가운 의학적 진단명은 절대 피할 것.
-  3. **구조화:** 그림 분석 시 
+  1. 절대 추측으로만 쓰지 마: 심리 상태를 설명할 때는 반드시 "그림에서 우산이 얼굴을 푹 덮을 만큼 크게 그려진 것을 보아"와 같이 그림 속 시각적 단서를 명확한 근거로 먼저 제시해줘.
+  2. 말투와 톤앤매너: 15년 차 전문가답게 논리적이면서도, 내담자의 고민을 부드럽게 감싸안아 주는 다정하고 따뜻한 위로의 말투(해요체)를 유지해줘. 차가운 의학적 진단명은 절대 피할 것.
+  3. 구조화: 그림 분석 시 
      - [1단계: 시각적 특징의 객관적 묘사, 내담자의 사연(고민)에 대한 진심 어린 공감과 첫인상] 
      - [2단계: 심리적 의미 해석, 그림의 구체적 특징(시각적 근거)과 그것이 뜻하는 내면의 상태 연결] 
-       [3단계: 종합 소견 및 긍정적 자원 찾기, 고민을 이겨내고 앞으로 나아가기 위한 따뜻한 조언]
+     - [3단계: 종합 소견 및 긍정적 자원 찾기, 고민을 이겨내고 앞으로 나아가기 위한 따뜻한 조언]
   의 순서로 답변해 주세요. 단, 이 분석은 의학적 진단이 아님을 명시하세요.
+  
+  4. (가장 중요) 출력 형식: 반드시 아래의 JSON 형식으로만 응답해야 해. 마크다운 기호(\`\`\`json 등)는 일절 포함하지 마.
+  {
+    "keywords": ["맞춤키워드1", "맞춤키워드2", "맞춤키워드3", "맞춤키워드4"],
+    "content": "1~3단계로 구성된 전체 본문 내용 (줄바꿈은 \\n 사용)"
+  }
   `;
 
   try {
@@ -96,7 +102,9 @@ export const analyzeDrawing = async (userInfo: any, imageBase64: string) => {
       { inlineData: { data: base64Data, mimeType: "image/png" } }
     ]);
     
-    return result.response.text();
+    // AI가 마크다운 블록을 붙여서 응답할 경우를 대비해 깔끔하게 제거합니다.
+    const rawText = result.response.text();
+    return rawText.replace(/```json/g, "").replace(/```/g, "").trim();
   } catch (apiError: any) {
     console.error("Gemini API 호출 내부 오류:", apiError);
     throw new Error("AI 분석 중 오류가 발생했습니다.");
